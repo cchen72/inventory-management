@@ -1,0 +1,64 @@
+name: Gemini AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v41
+
+      - name: Generate unified diff
+        id: diff
+        run: |
+          echo "Generating diff..."
+          git fetch origin ${{ github.base_ref }} --depth=1
+          git diff origin/${{ github.base_ref }} HEAD -- ${{ steps.changed.outputs.all_changed_files }} > diff.txt
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          cat diff.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run Gemini CLI review
+        id: gemini
+        uses: google-github-actions/run-gemini-cli@v1
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          model: gemini-1.5-flash
+          prompt: |
+            You are a senior software engineer doing a pull request review.
+
+            Review STRICTLY based on the provided git diff.
+
+            Your response should include:
+            - **Severity classification** (Bug risk / Optimization / Readability issue / Security concern)
+            - Suggestions for improvement
+            - Example fixes when possible
+            - Short summary conclusion
+
+            Do not repeat unchanged code.
+
+            #### Pull Request Diff:
+            ${{ steps.diff.outputs.diff }}
+
+      - name: Comment on PR with review result
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            🤖 **Gemini AI 代码审查结果：**
+
+            ${{ steps.gemini.outputs.output }}
