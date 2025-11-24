@@ -1,4 +1,4 @@
-name: Gemini AI Code Review (Debug)
+name: Gemini AI Code Review
 
 on:
   pull_request:
@@ -28,23 +28,14 @@ jobs:
       - name: Generate full diff
         id: diff
         run: |
-          echo "Generating full diff..."
           git fetch origin ${{ github.base_ref }} --depth=1
           FILES="${{ steps.changed.outputs.all_changed_files }}"
           git diff origin/${{ github.base_ref }} HEAD -- $FILES > diff.txt
           echo "diff<<EOF" >> $GITHUB_OUTPUT
           cat diff.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          echo "Diff size (lines): $(wc -l < diff.txt)"
 
-      # 4️⃣ Debug 输出 diff 内容（前20行）
-      - name: Debug diff content
-        run: |
-          echo "=== DIFF START (first 20 lines) ==="
-          head -n 20 diff.txt
-          echo "=== DIFF END ==="
-
-      # 5️⃣ 运行 Gemini CLI
+      # 4️⃣ 运行 Gemini CLI
       - name: Run Gemini CLI review
         id: gemini
         uses: google-github-actions/run-gemini-cli@v0.1.15
@@ -67,20 +58,12 @@ jobs:
             #### Pull Request Diff:
             ${{ steps.diff.outputs.diff }}
 
-      # 6️⃣ 安全输出 Gemini outputs
-      - name: Debug Gemini outputs safely
-        run: |
-          echo "=== GEMINI OUTPUTS ==="
-          cat <<EOF
-${{ toJSON(steps.gemini.outputs) }}
-EOF
-
-      # 7️⃣ 在 PR 上发表评论
+      # 5️⃣ 在 PR 上发表评论
       - name: Comment on PR with review result
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            🤖 **Gemini AI 代码审查结果（Debug）:**
+            🤖 **Gemini AI 代码审查结果：**
 
             ${{ steps.gemini.outputs.result || steps.gemini.outputs.output || '⚠️ No output from Gemini' }}
