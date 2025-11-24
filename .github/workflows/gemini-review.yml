@@ -67,11 +67,13 @@ jobs:
             #### Pull Request Diff:
             ${{ steps.diff.outputs.diff }}
 
-      # 6️⃣ Debug Gemini outputs
-      - name: Debug Gemini outputs
+      # 6️⃣ 安全输出 Gemini outputs
+      - name: Debug Gemini outputs safely
         run: |
           echo "=== GEMINI OUTPUTS ==="
-          echo "${{ toJSON(steps.gemini.outputs) }}"
+          cat <<EOF
+${{ toJSON(steps.gemini.outputs) }}
+EOF
 
       # 7️⃣ 在 PR 上发表评论
       - name: Comment on PR with review result
