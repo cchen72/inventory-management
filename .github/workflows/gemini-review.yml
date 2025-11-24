@@ -1,69 +1,41 @@
-name: Gemini AI Code Review
+name: Gemini AI Code Reviewer
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
 
-permissions:
-  pull-requests: write
-  contents: read
+permissions: write-all
 
 jobs:
-  review:
+  gemini-code-review:
     runs-on: ubuntu-latest
-
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/gemini-review')
     steps:
-      # 1️⃣ Checkout code
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: PR Info
+        run: |
+          echo "Comment: ${{ github.event.comment.body }}"
+          echo "Issue Number: ${{ github.event.issue.number }}"
+          echo "Repository: ${{ github.repository }}"
+
+      - name: Checkout Repo
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      # 2️⃣ 获取改动文件
-      - name: Get changed files
-        id: changed
-        uses: tj-actions/changed-files@v41
-
-      # 3️⃣ 生成完整 diff
-      - name: Generate full diff
-        id: diff
+      - name: Get PR Details
+        id: pr
         run: |
-          git fetch origin ${{ github.base_ref }} --depth=1
-          FILES="${{ steps.changed.outputs.all_changed_files }}"
-          git diff origin/${{ github.base_ref }} HEAD -- $FILES > diff.txt
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          cat diff.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }})
+          echo "head_sha=$(echo $PR_JSON | jq -r .head.sha)" >> $GITHUB_OUTPUT
+          echo "base_sha=$(echo $PR_JSON | jq -r .base.sha)" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4️⃣ 运行 Gemini CLI
-      - name: Run Gemini CLI review
-        id: gemini
-        uses: google-github-actions/run-gemini-cli@v0.1.15
+      - uses: truongnh1992/gemini-ai-code-reviewer@main
         with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: gemini-2.5-flash
-          prompt: |
-            You are a senior software engineer performing a pull request review.
-
-            Review STRICTLY based on the provided git diff.
-
-            Your response should include:
-            - **Severity classification** (Bug risk / Optimization / Readability issue / Security concern)
-            - Suggestions for improvement
-            - Example fixes if possible
-            - Short summary conclusion
-
-            Do not repeat unchanged code.
-
-            #### Pull Request Diff:
-            ${{ steps.diff.outputs.diff }}
-      
-      # 5️⃣ 在 PR 上发表评论（带错误处理）
-      - name: Comment on PR with review result
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            🤖 **Gemini AI 代码审查结果：**
-            ${{ steps.gemini.outputs.summary }}
-            ${{ steps.gemini.outputs.error && format('**错误信息:** {0}', steps.gemini.outputs.error) || '' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-2.5-pro # Optional, default is `gemini-2.5-flash`
+          EXCLUDE: "*.md,*.txt,package-lock.json,*.yml,*.yaml"
