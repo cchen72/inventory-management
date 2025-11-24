@@ -17,9 +17,9 @@ def check_ids(big_csv, small_csv, column_big=0, column_small=0):
     exists = [id_ for id_ in small_ids if id_ in big_ids]
     missing = [id_ for id_ in small_ids if id_ not in big_ids]
 
-    print(f"共检查 {len(small_ids)} 个 ID")
-    print(f"存在 {len(exists)} 个：{exists}")
-    print(f"不存在 {len(missing)} 个：{missing}")
+    # print(f"共检查 {len(small_ids)} 个 ID")
+    # print(f"存在 {len(exists)} 个：{exists}")
+    # print(f"不存在 {len(missing)} 个：{missing}")
 
 if __name__ == "__main__":
     # 修改成你的文件路径和列索引
