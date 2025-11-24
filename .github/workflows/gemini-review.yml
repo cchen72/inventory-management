@@ -57,8 +57,8 @@ jobs:
 
             #### Pull Request Diff:
             ${{ steps.diff.outputs.diff }}
-
-      # 5️⃣ 在 PR 上发表评论
+      
+      # 5️⃣ 在 PR 上发表评论（带错误处理）
       - name: Comment on PR with review result
         uses: peter-evans/create-or-update-comment@v4
         with:
@@ -66,4 +66,6 @@ jobs:
           body: |
             🤖 **Gemini AI 代码审查结果：**
 
-            ${{ steps.gemini.outputs.result || steps.gemini.outputs.output || '⚠️ No output from Gemini' }}
+            ${{ steps.gemini.outputs.summary }}
+
+            ${{ steps.gemini.outputs.error && format('**错误信息:** {0}', steps.gemini.outputs.error) || '' }}
