@@ -1,0 +1,86 @@
+name: Gemini AI Code Review (Debug)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2️⃣ 获取改动文件
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v41
+
+      # 3️⃣ 生成完整 diff
+      - name: Generate full diff
+        id: diff
+        run: |
+          echo "Generating full diff..."
+          git fetch origin ${{ github.base_ref }} --depth=1
+          FILES="${{ steps.changed.outputs.all_changed_files }}"
+          git diff origin/${{ github.base_ref }} HEAD -- $FILES > diff.txt
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          cat diff.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "Diff size (lines): $(wc -l < diff.txt)"
+
+      # 4️⃣ Debug 输出 diff 内容（前20行）
+      - name: Debug diff content
+        run: |
+          echo "=== DIFF START (first 20 lines) ==="
+          head -n 20 diff.txt
+          echo "=== DIFF END ==="
+
+      # 5️⃣ 运行 Gemini CLI
+      - name: Run Gemini CLI review
+        id: gemini
+        uses: google-github-actions/run-gemini-cli@v0.1.15
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_model: gemini-2.5-flash
+          prompt: |
+            You are a senior software engineer performing a pull request review.
+
+            Review STRICTLY based on the provided git diff.
+
+            Your response should include:
+            - **Severity classification** (Bug risk / Optimization / Readability issue / Security concern)
+            - Suggestions for improvement
+            - Example fixes if possible
+            - Short summary conclusion
+
+            Do not repeat unchanged code.
+
+            #### Pull Request Diff:
+            ${{ steps.diff.outputs.diff }}
+
+      # 6️⃣ 安全输出 Gemini outputs
+      - name: Debug Gemini outputs safely
+        run: |
+          echo "=== GEMINI OUTPUTS ==="
+          cat <<EOF
+${{ toJSON(steps.gemini.outputs) }}
+EOF
+
+      # 7️⃣ 在 PR 上发表评论
+      - name: Comment on PR with review result
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            🤖 **Gemini AI 代码审查结果（Debug）:**
+
+            ${{ steps.gemini.outputs.result || steps.gemini.outputs.output || '⚠️ No output from Gemini' }}
