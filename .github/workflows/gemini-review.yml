@@ -65,7 +65,5 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             🤖 **Gemini AI 代码审查结果：**
-
             ${{ steps.gemini.outputs.summary }}
-
             ${{ steps.gemini.outputs.error && format('**错误信息:** {0}', steps.gemini.outputs.error) || '' }}
